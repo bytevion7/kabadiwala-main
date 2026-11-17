@@ -1,0 +1,68 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.database import engine, Base, SessionLocal, run_migrations
+from app.models import *  # Ensure all models are registered with Base
+from app.seed import seed_database
+from app.routers import (
+    lots_router,
+    prices_router,
+    recyclers_router,
+    authorizations_router,
+    handovers_router,
+    ledger_router,
+    sync_router,
+    admin_router,
+    verify_router,
+    auth_router,
+    collectors_router,
+)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize database schema tables and auto-migrate columns on startup
+    run_migrations(engine)
+    Base.metadata.create_all(bind=engine)
+    try:
+        with SessionLocal() as db_session:
+            seed_database(db_session)
+    except Exception as e:
+        print(f"Database seed warning: {e}")
+    yield
+
+app = FastAPI(
+    title="Kabadiwala Connect API",
+    description="Backend services for Kabadiwala Connect PWA — e-waste collector formalization & recycling platform",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(lots_router)
+app.include_router(prices_router)
+app.include_router(recyclers_router)
+app.include_router(authorizations_router)
+app.include_router(handovers_router)
+app.include_router(ledger_router)
+app.include_router(sync_router)
+app.include_router(admin_router)
+app.include_router(verify_router)
+app.include_router(auth_router)
+app.include_router(collectors_router)
+
+@app.get("/")
+def root():
+    return {
+        "app": "Kabadiwala Connect API",
+        "status": "healthy",
+        "version": "1.0.0",
+        "docs_url": "/docs",
+    }
+
